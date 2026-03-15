@@ -1,0 +1,137 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #0AC18E;
+  --color-primary-dark: #09a67a;
+  --color-dark: #0A0A0B;
+  --color-dark-header: rgba(10, 10, 11, 0.8);
+  --color-dark-footer: #050505;
+  --color-dark-search: #161618;
+  --color-light: #F9FAFB;
+}
+
+:root {
+  --primary: #0AC18E;
+  --primary-dark: #09a67a;
+  --dark: #0A0A0B;
+  --dark-header: rgba(10, 10, 11, 0.8);
+  --dark-footer: #050505;
+  --dark-search: #161618;
+  --light: #F9FAFB;
+  --gray-700: #374151;
+  --gray-800: #1F2937;
+  --gray-900: #111827;
+}
+
+@layer base {
+  body {
+    background-color: var(--dark);
+    color: var(--light);
+    font-family: 'Inter', sans-serif;
+    margin: 0;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* Custom Utilities if Tailwind is not fully set up or for extra polish */
+.bg-dark {
+  background-color: var(--dark);
+}
+
+.bg-dark-header {
+  background-color: var(--dark-header);
+}
+
+.bg-dark-footer {
+  background-color: var(--dark-footer);
+}
+
+.bg-dark-search {
+  background-color: var(--dark-search);
+}
+
+.text-primary {
+  color: var(--primary);
+}
+
+.bg-primary {
+  background-color: var(--primary);
+}
+
+.hover\:bg-primary-dark:hover {
+  background-color: var(--primary-dark);
+}
+
+.border-primary {
+  border-color: var(--primary);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--dark);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--gray-800);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--gray-700);
+}
+
+/* Category Row Horizontal Scroll */
+.category-row {
+  display: flex;
+  overflow-x: auto;
+  gap: 1.5rem;
+  padding-bottom: 1rem;
+  scrollbar-width: thin;
+  -ms-overflow-style: none;
+}
+
+.category-row::-webkit-scrollbar {
+  height: 4px;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.5s ease-out forwards;
+}
+
+/* Video Player Wrapper */
+.video-container {
+  position: relative;
+  padding-bottom: 56.25%;
+  /* 16:9 */
+  height: 0;
+  overflow: hidden;
+  border-radius: 0.75rem;
+  background: #000;
+}
+
+.video-container iframe {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
