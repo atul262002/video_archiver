@@ -6,6 +6,8 @@ import { CategoryPage } from './pages/CategoryPage';
 import { VideoPage } from './pages/VideoPage';
 import { Categories } from './pages/Categories';
 import { AdminPanel } from './pages/AdminPanel';
+import { About } from './pages/About';
+import { Downloads } from './pages/Downloads';
 import type { Video } from './types';
 import './styles/main.css';
 
@@ -164,6 +166,8 @@ function App() {
           <Route path="/categories" element={<Categories videos={videos} categories={categories} />} />
           <Route path="/category/:categoryName" element={<CategoryPage videos={videos} categories={categories} />} />
           <Route path="/video/:id" element={<VideoPage videos={videos} />} />
+          <Route path="/about" element={<About />} />
+          <Route path="/downloads" element={<Downloads videos={videos} categories={categories} />} />
           <Route
             path="/admin"
             element={

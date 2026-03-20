@@ -36,8 +36,9 @@ export const Layout: React.FC<LayoutProps> = ({ children, onSearch }) => {
                     </div>
 
                     <nav className="hidden md:flex items-center space-x-6">
+                        <Link to="/about" className="text-gray-300 hover:text-white transition-colors">About</Link>
                         <Link to="/categories" className="text-gray-300 hover:text-white transition-colors">Categories</Link>
-                        <Link to="/admin" className="text-gray-300 hover:text-white transition-colors">Admin</Link>
+                        <Link to="/downloads" className="text-gray-300 hover:text-white transition-colors">Downloads</Link>
                         <a href="#donate" className="flex items-center space-x-1 bg-primary hover:bg-primary-dark text-black px-4 py-2 rounded-full font-semibold transition-colors">
                             <Wallet className="w-4 h-4" />
                             <span>Donate</span>
@@ -59,8 +60,9 @@ export const Layout: React.FC<LayoutProps> = ({ children, onSearch }) => {
                             className="w-full bg-dark-search border border-gray-700 rounded-lg py-2 px-4 focus:outline-none focus:ring-2 focus:ring-primary"
                         />
                         <div className="flex flex-col space-y-3">
+                            <Link to="/about" className="text-gray-300 hover:text-white" onClick={() => setIsMenuOpen(false)}>About</Link>
                             <Link to="/categories" className="text-gray-300 hover:text-white" onClick={() => setIsMenuOpen(false)}>Categories</Link>
-                            <Link to="/admin" className="text-gray-300 hover:text-white" onClick={() => setIsMenuOpen(false)}>Admin Panel</Link>
+                            <Link to="/downloads" className="text-gray-300 hover:text-white" onClick={() => setIsMenuOpen(false)}>Downloads</Link>
                             <a href="#donate" className="text-primary font-bold" onClick={() => setIsMenuOpen(false)}>Donate BCH</a>
                         </div>
                     </div>
@@ -109,8 +111,9 @@ export const Layout: React.FC<LayoutProps> = ({ children, onSearch }) => {
                             <p className="mt-4 text-gray-500 text-sm font-medium">Scan code to donate BCH</p>
                         </div>
                     </div>
-                    <div className="mt-12 pt-8 border-t border-gray-800 text-center text-gray-500 text-sm">
-                        &copy; {new Date().getFullYear()} BCache - Bitcoin Cash Archival Project. Fast. Simple. Permanent.
+                    <div className="mt-12 pt-8 border-t border-gray-800 flex flex-col md:flex-row items-center justify-between text-gray-500 text-sm">
+                        <div>&copy; {new Date().getFullYear()} BCache - Bitcoin Cash Archival Project. Fast. Simple. Permanent.</div>
+                        <Link to="/admin" className="mt-4 md:mt-0 text-gray-700 hover:text-gray-500 transition-colors">Admin Login</Link>
                     </div>
                 </div>
             </footer>
