@@ -1,5 +1,5 @@
-import React from 'react';
-import { Archive, Info } from 'lucide-react';
+import React from "react";
+import { Archive, Info } from "lucide-react";
 
 export const About: React.FC = () => {
   return (
@@ -10,9 +10,11 @@ export const About: React.FC = () => {
             <Archive className="w-12 h-12 text-primary" />
           </div>
         </div>
-        <h1 className="text-4xl md:text-5xl font-bold mb-4 font-display">About the Archive</h1>
+        <h1 className="text-4xl md:text-5xl font-bold mb-4 font-display">
+          About BCache
+        </h1>
         <p className="text-xl text-gray-400 max-w-2xl mx-auto">
-          Preserving Bitcoin Cash history and media for future generations.
+          Preserving Bitcoin Cash history and media.
         </p>
       </div>
 
@@ -21,42 +23,45 @@ export const About: React.FC = () => {
           <Info className="w-6 h-6 text-primary" />
           <h2 className="text-2xl font-bold">Our Mission</h2>
         </div>
-        
         <div className="space-y-6 text-gray-300 text-lg leading-relaxed">
           <p>
-            The Bitcoin Cash Video Archive is dedicated to the permanent preservation of 
-            important presentations, conferences, podcasts, and historical media related to Bitcoin Cash.
+            BCache is dedicated to the permanent preservation of important
+            presentations, conferences, podcasts, and historical media related
+            to Bitcoin Cash.
           </p>
           <p>
-            As platforms change policies or content goes offline, valuable historical context 
-            can be lost. This community-funded archive ensures that the ideas, debates, and 
-            technological milestones of the BCH ecosystem remain accessible to researchers, 
-            developers, and enthusiasts indefinitely.
-          </p>
-          <p>
-            We prioritize speed, simplicity, and permanence—delivering a fast, minimalist 
-            experience that gets out of the way and lets the content shine.
+            As platforms evolve, change policies, or remove content, valuable
+            historical context can be lost. This archive ensures that the ideas,
+            debates, and technological milestones of the BCH ecosystem remain
+            accessible to researchers, developers, and enthusiasts for the long
+            term.
           </p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         <div className="bg-dark-card border border-gray-800 rounded-2xl p-8 shadow-xl">
-            <h3 className="text-xl font-bold mb-4 text-white">Run By The Podcast</h3>
-            <p className="text-gray-400 leading-relaxed">
-              This archive is proudly maintained and operated by <strong>The Podcast</strong> team. 
-              We believe in uncensorable information and are committed to keeping this repository 
-              online and freely available.
-            </p>
+          <h3 className="text-xl font-bold mb-4 text-white">
+            Brought to you by The Bitcoin Cash Podcast
+          </h3>
+          <p className="text-gray-400 leading-relaxed" />
+          <p>
+            This archive is proudly maintained and operated by{" "}
+            <strong>The Bitcoin Cash Podcast</strong> team. We believe in
+            uncensorable information and are committed to keeping this
+            repository online, accessible, and free for everyone.
+          </p>
         </div>
 
         <div className="bg-dark-card border border-gray-800 rounded-2xl p-8 shadow-xl">
-            <h3 className="text-xl font-bold mb-4 text-white">Community Supported</h3>
-            <p className="text-gray-400 leading-relaxed">
-              This project is made possible through direct support from the Bitcoin Cash community. 
-              If you find this archive valuable, consider supporting the servers and bandwidth costs 
-              via the donation address in the footer.
-            </p>
+          <h3 className="text-xl font-bold mb-4 text-white">
+            Community Support
+          </h3>
+          <p className="text-gray-400 leading-relaxed">
+            Your support is important to keep this archive running. If you
+            believe this work matters, please consider donating to help cover
+            running costs. Donation address can be found in the footer.
+          </p>
         </div>
       </div>
     </div>
