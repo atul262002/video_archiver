@@ -35,7 +35,22 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'change-this-admin-password
 const ADMIN_PASSWORD_HASH = process.env.ADMIN_PASSWORD_HASH || '';
 const ADMIN_PASSWORD_SALT = process.env.ADMIN_PASSWORD_SALT || '';
 
-app.use(cors({ origin: FRONTEND_ORIGIN, credentials: true }));
+//app.use(cors({ origin: FRONTEND_ORIGIN, credentials: true }));
+const ALLOWED_ORIGINS = [
+    'https://video-archiver.vercel.app',
+    'http://localhost:5173',   // for local dev
+];
+
+app.use(cors({
+    origin: (origin, callback) => {
+        if (!origin || ALLOWED_ORIGINS.includes(origin)) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
+    credentials: true,
+}));
 app.use(express.json());
 
 function loadEnvFile() {
