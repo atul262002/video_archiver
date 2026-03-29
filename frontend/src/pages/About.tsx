@@ -1,7 +1,9 @@
 import React from "react";
-import { Archive, Info } from "lucide-react";
+import { Archive, Info, Lightbulb } from "lucide-react";
+import { useOpenSuggestPreservation } from "../context/SuggestPreservationContext";
 
 export const About: React.FC = () => {
+  const openSuggest = useOpenSuggestPreservation();
   return (
     <div className="max-w-4xl mx-auto py-12 px-4">
       <div className="text-center mb-12">
@@ -62,6 +64,29 @@ export const About: React.FC = () => {
             believe this work matters, please consider donating to help cover
             running costs. Donation address can be found in the footer.
           </p>
+        </div>
+      </div>
+
+      <div className="mt-12 bg-dark-card border border-primary/25 rounded-2xl p-8 shadow-xl">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+          <div>
+            <h3 className="text-xl font-bold mb-2 text-white flex items-center gap-2">
+              <Lightbulb className="w-6 h-6 text-primary" />
+              Crowdsource the archive
+            </h3>
+            <p className="text-gray-400 leading-relaxed max-w-2xl">
+              Know a video, channel, social post, or article that must be saved?
+              Send a suggestion — our team reviews every submission.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => openSuggest()}
+            className="shrink-0 inline-flex items-center justify-center gap-2 rounded-full bg-primary hover:bg-primary-dark text-black font-bold px-6 py-3 transition-colors"
+          >
+            <Lightbulb className="w-5 h-5" />
+            Suggest for preservation
+          </button>
         </div>
       </div>
     </div>

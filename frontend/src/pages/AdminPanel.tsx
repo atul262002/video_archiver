@@ -1,9 +1,12 @@
-import React, { useState } from 'react';
-import { Plus, Trash2, Edit2, Save, X, Youtube, HardDrive, Play, Share2, LogOut, Shield, FolderPlus } from 'lucide-react';
-import type { Video } from '../types';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Plus, Trash2, Edit2, Save, X, Youtube, HardDrive, Play, Share2, LogOut, Shield, FolderPlus, Inbox, RefreshCw, EyeOff, RotateCcw, ChevronLeft, ChevronRight } from 'lucide-react';
+import type { Video, PreservationSuggestion } from '../types';
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL as string;
+const SUGGESTIONS_API_URL = `${API_BASE}/suggestions`;
+const ADMIN_VIDEOS_API_URL = `${API_BASE}/admin/videos`;
 
 interface AdminPanelProps {
-    videos: Video[];
     categories: string[];
     isAuthenticated: boolean;
     onLogin: (password: string) => Promise<void>;
@@ -14,7 +17,6 @@ interface AdminPanelProps {
 }
 
 export const AdminPanel: React.FC<AdminPanelProps> = ({
-    videos,
     categories,
     isAuthenticated,
     onLogin,
@@ -29,6 +31,94 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     const [error, setError] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [newCategoryName, setNewCategoryName] = useState('');
+    const [adminVideos, setAdminVideos] = useState<Video[]>([]);
+    const [adminVideosTotal, setAdminVideosTotal] = useState(0);
+    const [adminVideoPage, setAdminVideoPage] = useState(1);
+    const [adminVideoPageSize, setAdminVideoPageSize] = useState(15);
+
+    const [crowdSuggestions, setCrowdSuggestions] = useState<PreservationSuggestion[]>([]);
+    const [suggestionsTotal, setSuggestionsTotal] = useState(0);
+    const [suggestionPage, setSuggestionPage] = useState(1);
+    const [suggestionPageSize, setSuggestionPageSize] = useState(15);
+    const [includeArchivedSuggestions, setIncludeArchivedSuggestions] = useState(false);
+    const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+    const [suggestionsError, setSuggestionsError] = useState('');
+
+    const loadAdminVideos = useCallback(async () => {
+        try {
+            const params = new URLSearchParams({
+                page: String(adminVideoPage),
+                pageSize: String(adminVideoPageSize),
+            });
+            const response = await fetch(`${ADMIN_VIDEOS_API_URL}?${params}`, { credentials: 'include' });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(data.error || 'Failed to load videos');
+            }
+            setAdminVideos(Array.isArray(data.items) ? data.items : []);
+            setAdminVideosTotal(typeof data.total === 'number' ? data.total : 0);
+        } catch {
+            setAdminVideos([]);
+            setAdminVideosTotal(0);
+        }
+    }, [adminVideoPage, adminVideoPageSize]);
+
+    const loadCrowdSuggestions = useCallback(async () => {
+        setSuggestionsLoading(true);
+        setSuggestionsError('');
+        try {
+            const params = new URLSearchParams({
+                page: String(suggestionPage),
+                pageSize: String(suggestionPageSize),
+                includeArchived: includeArchivedSuggestions ? 'true' : 'false',
+            });
+            const response = await fetch(`${SUGGESTIONS_API_URL}?${params}`, { credentials: 'include' });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(data.error || 'Failed to load suggestions');
+            }
+            setCrowdSuggestions(Array.isArray(data.items) ? data.items : []);
+            setSuggestionsTotal(typeof data.total === 'number' ? data.total : 0);
+        } catch (err) {
+            setSuggestionsError(err instanceof Error ? err.message : 'Failed to load suggestions');
+            setCrowdSuggestions([]);
+            setSuggestionsTotal(0);
+        } finally {
+            setSuggestionsLoading(false);
+        }
+    }, [suggestionPage, suggestionPageSize, includeArchivedSuggestions]);
+
+    useEffect(() => {
+        if (!isAuthenticated) return;
+        void loadAdminVideos();
+    }, [isAuthenticated, loadAdminVideos]);
+
+    useEffect(() => {
+        if (!isAuthenticated) return;
+        void loadCrowdSuggestions();
+    }, [isAuthenticated, loadCrowdSuggestions]);
+
+    useEffect(() => {
+        setSuggestionPage(1);
+    }, [includeArchivedSuggestions]);
+
+    useEffect(() => {
+        setAdminVideoPage(1);
+    }, [adminVideoPageSize]);
+
+    useEffect(() => {
+        setSuggestionPage(1);
+    }, [suggestionPageSize]);
+
+    useEffect(() => {
+        const pages = Math.max(1, Math.ceil(adminVideosTotal / adminVideoPageSize) || 1);
+        if (adminVideoPage > pages) setAdminVideoPage(pages);
+    }, [adminVideosTotal, adminVideoPageSize, adminVideoPage]);
+
+    useEffect(() => {
+        const pages = Math.max(1, Math.ceil(suggestionsTotal / suggestionPageSize) || 1);
+        if (suggestionPage > pages) setSuggestionPage(pages);
+    }, [suggestionsTotal, suggestionPageSize, suggestionPage]);
     const platformFields: Array<{ label: string; key: keyof Video['platforms']; icon: React.ReactNode }> = [
         { label: 'YouTube Embed URL', key: 'youtube', icon: <Youtube className="w-5 h-5 text-red-500" /> },
         { label: 'Google Drive URL', key: 'googleDrive', icon: <HardDrive className="w-5 h-5 text-blue-500" /> },
@@ -67,6 +157,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 await onSave(editingVideo);
                 setEditingVideo(null);
                 setIsAdding(false);
+                void loadAdminVideos();
             } catch (err) {
                 setError(err instanceof Error ? err.message : 'Failed to save video');
             } finally {
@@ -95,10 +186,62 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         setIsSubmitting(true);
         try {
             await onDelete(id);
+            void loadAdminVideos();
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to delete video');
         } finally {
             setIsSubmitting(false);
+        }
+    };
+
+    const [suggestionBusyId, setSuggestionBusyId] = useState<string | null>(null);
+
+    const patchSuggestionArchived = async (id: string, archived: boolean) => {
+        setSuggestionBusyId(id);
+        setSuggestionsError('');
+        try {
+            const response = await fetch(`${SUGGESTIONS_API_URL}/${id}`, {
+                method: 'PATCH',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ archived }),
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                if (response.status === 401) {
+                    await onLogout();
+                }
+                throw new Error(data.error || 'Failed to update suggestion');
+            }
+            await loadCrowdSuggestions();
+        } catch (err) {
+            setSuggestionsError(err instanceof Error ? err.message : 'Failed to update suggestion');
+        } finally {
+            setSuggestionBusyId(null);
+        }
+    };
+
+    const deleteSuggestion = async (id: string) => {
+        if (!confirm('Permanently delete this suggestion?')) return;
+        setSuggestionBusyId(id);
+        setSuggestionsError('');
+        try {
+            const response = await fetch(`${SUGGESTIONS_API_URL}/${id}`, {
+                method: 'DELETE',
+                credentials: 'include',
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                if (response.status === 401) {
+                    await onLogout();
+                }
+                throw new Error(data.error || 'Failed to delete suggestion');
+            }
+            await loadCrowdSuggestions();
+        } catch (err) {
+            setSuggestionsError(err instanceof Error ? err.message : 'Failed to delete suggestion');
+        } finally {
+            setSuggestionBusyId(null);
         }
     };
 
@@ -135,7 +278,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     <button type="submit" disabled={isSubmitting} className="w-full bg-primary hover:bg-primary-dark text-black font-bold py-3 rounded-lg transition-colors disabled:opacity-60">
                         {isSubmitting ? 'Checking...' : 'Login'}
                     </button>
-                    <p className="text-gray-500 text-xs text-center mt-4">The password is validated on the server now, so only real admin credentials can modify archive data.</p>
                 </form>
             </div>
         );
@@ -324,34 +466,205 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-4">
-                {videos.map(video => (
-                    <div key={video.id} className="bg-gray-900 border border-gray-800 rounded-xl p-4 flex items-center gap-4 group hover:border-gray-700 transition-colors">
-                        <div className="w-24 aspect-video bg-black rounded overflow-hidden flex-shrink-0 border border-gray-800">
-                            <img src={video.thumbnailUrl || `https://img.youtube.com/vi/${getYouTubeId(video.platforms.youtube)}/mqdefault.jpg`} className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-opacity" alt="" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                            <h3 className="font-bold text-white truncate">{video.title}</h3>
-                            <p className="text-xs text-gray-500 uppercase tracking-widest mt-1">{video.category}</p>
-                        </div>
-                        <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button
-                                onClick={() => handleEdit(video)}
-                                className="p-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-primary transition-colors"
-                                title="Edit"
-                            >
-                                <Edit2 className="w-5 h-5" />
-                            </button>
-                            <button
-                                onClick={() => void handleDelete(video.id)}
-                                className="p-2 bg-gray-800 hover:bg-red-500/20 rounded-lg text-gray-500 hover:text-red-500 transition-colors"
-                                title="Delete"
-                            >
-                                <Trash2 className="w-5 h-5" />
-                            </button>
-                        </div>
+            <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
+                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-4">
+                    <div className="flex items-center gap-2">
+                        <Inbox className="w-5 h-5 text-primary" />
+                        <h2 className="text-xl font-bold text-white">Crowdsourced suggestions</h2>
                     </div>
-                ))}
+                    <div className="flex flex-wrap items-center gap-3">
+                        <label className="flex items-center gap-2 text-sm text-gray-400 cursor-pointer select-none">
+                            <input
+                                type="checkbox"
+                                checked={includeArchivedSuggestions}
+                                onChange={e => setIncludeArchivedSuggestions(e.target.checked)}
+                                className="rounded border-gray-600 bg-dark text-primary focus:ring-primary"
+                            />
+                            Show hidden
+                        </label>
+                        <label className="text-sm text-gray-500 flex items-center gap-2">
+                            Per page
+                            <select
+                                value={suggestionPageSize}
+                                onChange={e => setSuggestionPageSize(Number(e.target.value))}
+                                className="bg-dark border border-gray-700 rounded-lg px-2 py-1.5 text-white text-sm"
+                            >
+                                <option value={10}>10</option>
+                                <option value={15}>15</option>
+                                <option value={25}>25</option>
+                                <option value={50}>50</option>
+                            </select>
+                        </label>
+                        <button
+                            type="button"
+                            onClick={() => void loadCrowdSuggestions()}
+                            disabled={suggestionsLoading}
+                            className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-gray-700 text-gray-300 hover:text-white hover:border-gray-500 transition-colors disabled:opacity-50"
+                        >
+                            <RefreshCw className={`w-4 h-4 ${suggestionsLoading ? 'animate-spin' : ''}`} />
+                            Refresh
+                        </button>
+                    </div>
+                </div>
+                <p className="text-sm text-gray-500 mb-4">
+                    Newest first. Use <strong className="text-gray-400">Hide from inbox</strong> to clear items from this list (toggle &quot;Show hidden&quot; to see them again). Delete removes permanently.
+                </p>
+                {suggestionsError && (
+                    <p className="text-sm text-amber-400/90 mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3">
+                        {suggestionsError}
+                    </p>
+                )}
+                {suggestionsLoading && crowdSuggestions.length === 0 && !suggestionsError ? (
+                    <p className="text-gray-500 text-sm">Loading…</p>
+                ) : crowdSuggestions.length === 0 ? (
+                    <p className="text-gray-500 text-sm">No suggestions on this page.</p>
+                ) : (
+                    <ul className="space-y-3">
+                        {crowdSuggestions.map(s => {
+                            const busy = suggestionBusyId === s.id;
+                            const isArchived = Boolean(s.archived);
+                            return (
+                                <li
+                                    key={s.id}
+                                    className="rounded-xl border border-gray-800 bg-dark/50 p-4 text-sm"
+                                >
+                                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-2">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <span className="text-[10px] uppercase tracking-wider font-bold text-primary bg-primary/10 px-2 py-0.5 rounded">
+                                                {suggestionKindLabel(s.kind)}
+                                            </span>
+                                            <span className="text-xs text-gray-600">
+                                                {new Date(s.createdAt).toLocaleString()}
+                                            </span>
+                                            {isArchived ? (
+                                                <span className="text-[10px] uppercase tracking-wider text-gray-500 bg-gray-800 px-2 py-0.5 rounded">Hidden</span>
+                                            ) : (
+                                                <span className="text-[10px] uppercase tracking-wider text-emerald-600/90 bg-emerald-500/10 px-2 py-0.5 rounded">In inbox</span>
+                                            )}
+                                        </div>
+                                        <div className="flex flex-wrap gap-2 shrink-0">
+                                            {!isArchived ? (
+                                                <button
+                                                    type="button"
+                                                    disabled={busy}
+                                                    onClick={() => void patchSuggestionArchived(s.id, true)}
+                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-medium disabled:opacity-50"
+                                                >
+                                                    <EyeOff className="w-3.5 h-3.5" />
+                                                    Hide from inbox
+                                                </button>
+                                            ) : (
+                                                <button
+                                                    type="button"
+                                                    disabled={busy}
+                                                    onClick={() => void patchSuggestionArchived(s.id, false)}
+                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-medium disabled:opacity-50"
+                                                >
+                                                    <RotateCcw className="w-3.5 h-3.5" />
+                                                    Restore to inbox
+                                                </button>
+                                            )}
+                                            <button
+                                                type="button"
+                                                disabled={busy}
+                                                onClick={() => void deleteSuggestion(s.id)}
+                                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-medium disabled:opacity-50"
+                                            >
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                                Delete
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <p className="text-[10px] uppercase tracking-wider text-gray-500 font-bold">Link / details</p>
+                                        <p className="text-gray-200 whitespace-pre-wrap break-words font-mono text-xs leading-relaxed">
+                                            {s.reference}
+                                        </p>
+                                    </div>
+                                    {s.note ? (
+                                        <div className="mt-3 pt-3 border-t border-gray-800 space-y-1">
+                                            <p className="text-[10px] uppercase tracking-wider text-primary font-bold">Visitor message</p>
+                                            <p className="text-gray-300 whitespace-pre-wrap break-words text-sm leading-relaxed">{s.note}</p>
+                                        </div>
+                                    ) : null}
+                                </li>
+                            );
+                        })}
+                    </ul>
+                )}
+                <PaginationBar
+                    page={suggestionPage}
+                    pageSize={suggestionPageSize}
+                    total={suggestionsTotal}
+                    onPageChange={setSuggestionPage}
+                    disabled={suggestionsLoading}
+                />
+            </div>
+
+            <div>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+                    <h2 className="text-xl font-bold text-white">Videos in archive</h2>
+                    <label className="text-sm text-gray-500 flex items-center gap-2">
+                        Per page
+                        <select
+                            value={adminVideoPageSize}
+                            onChange={e => setAdminVideoPageSize(Number(e.target.value))}
+                            className="bg-dark border border-gray-700 rounded-lg px-2 py-1.5 text-white text-sm"
+                        >
+                            <option value={10}>10</option>
+                            <option value={15}>15</option>
+                            <option value={25}>25</option>
+                            <option value={50}>50</option>
+                        </select>
+                    </label>
+                </div>
+                <p className="text-sm text-gray-500 mb-4">Sorted with most recently added or updated first.</p>
+                <div className="grid grid-cols-1 gap-4">
+                    {adminVideos.map(video => (
+                        <div key={video.id} className="bg-gray-900 border border-gray-800 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center gap-4 group hover:border-gray-700 transition-colors">
+                            <div className="w-full sm:w-24 aspect-video bg-black rounded overflow-hidden flex-shrink-0 border border-gray-800 mx-auto sm:mx-0 max-w-[200px] sm:max-w-none">
+                                <img src={video.thumbnailUrl || `https://img.youtube.com/vi/${getYouTubeId(video.platforms.youtube)}/mqdefault.jpg`} className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-opacity" alt="" />
+                            </div>
+                            <div className="flex-1 min-w-0 text-center sm:text-left">
+                                <h3 className="font-bold text-white truncate">{video.title}</h3>
+                                <p className="text-xs text-gray-500 uppercase tracking-widest mt-1">{video.category}</p>
+                                {(video.updatedAt || video.createdAt) && (
+                                    <p className="text-[11px] text-gray-600 mt-1">
+                                        {video.updatedAt && <span>Updated {new Date(video.updatedAt).toLocaleString()}</span>}
+                                        {video.updatedAt && video.createdAt ? ' · ' : null}
+                                        {video.createdAt && <span>Added {new Date(video.createdAt).toLocaleString()}</span>}
+                                    </p>
+                                )}
+                            </div>
+                            <div className="flex items-center justify-center sm:justify-end gap-2 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                                <button
+                                    onClick={() => handleEdit(video)}
+                                    className="p-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-primary transition-colors"
+                                    title="Edit"
+                                >
+                                    <Edit2 className="w-5 h-5" />
+                                </button>
+                                <button
+                                    onClick={() => void handleDelete(video.id)}
+                                    className="p-2 bg-gray-800 hover:bg-red-500/20 rounded-lg text-gray-500 hover:text-red-500 transition-colors"
+                                    title="Delete"
+                                >
+                                    <Trash2 className="w-5 h-5" />
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+                {adminVideos.length === 0 && adminVideosTotal === 0 ? (
+                    <p className="text-gray-500 text-sm mt-4">No videos yet. Add a category, then add a video.</p>
+                ) : null}
+                <PaginationBar
+                    page={adminVideoPage}
+                    pageSize={adminVideoPageSize}
+                    total={adminVideosTotal}
+                    onPageChange={setAdminVideoPage}
+                    disabled={false}
+                />
             </div>
         </div>
     );
@@ -361,4 +674,65 @@ function getYouTubeId(url?: string) {
     if (!url) return '';
     const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/);
     return match ? match[1] : '';
+}
+
+interface PaginationBarProps {
+    page: number;
+    pageSize: number;
+    total: number;
+    onPageChange: (nextPage: number) => void;
+    disabled?: boolean;
+}
+
+function PaginationBar({ page, pageSize, total, onPageChange, disabled }: PaginationBarProps) {
+    const totalPages = Math.max(1, Math.ceil(total / pageSize) || 1);
+    const clampedPage = Math.min(Math.max(1, page), totalPages);
+    const from = total === 0 ? 0 : (clampedPage - 1) * pageSize + 1;
+    const to = total === 0 ? 0 : Math.min(clampedPage * pageSize, total);
+
+    return (
+        <div className="mt-4 pt-4 border-t border-gray-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-gray-500">
+            <span>
+                {total === 0 ? '0 items' : `Showing ${from}–${to} of ${total}`}
+            </span>
+            <div className="flex items-center gap-2">
+                <button
+                    type="button"
+                    disabled={disabled || clampedPage <= 1}
+                    onClick={() => onPageChange(clampedPage - 1)}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-gray-700 text-gray-300 hover:bg-gray-800 disabled:opacity-40 disabled:pointer-events-none"
+                >
+                    <ChevronLeft className="w-4 h-4" />
+                    Previous
+                </button>
+                <span className="text-gray-400 tabular-nums px-2">
+                    Page {clampedPage} / {totalPages}
+                </span>
+                <button
+                    type="button"
+                    disabled={disabled || clampedPage >= totalPages}
+                    onClick={() => onPageChange(clampedPage + 1)}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-gray-700 text-gray-300 hover:bg-gray-800 disabled:opacity-40 disabled:pointer-events-none"
+                >
+                    Next
+                    <ChevronRight className="w-4 h-4" />
+                </button>
+            </div>
+        </div>
+    );
+}
+
+function suggestionKindLabel(kind: PreservationSuggestion['kind']): string {
+    switch (kind) {
+        case 'video':
+            return 'Video';
+        case 'channel':
+            return 'Channel';
+        case 'social':
+            return 'Social post';
+        case 'blog':
+            return 'Blog / article';
+        default:
+            return kind;
+    }
 }

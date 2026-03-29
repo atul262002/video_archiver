@@ -1,22 +1,30 @@
 import express from 'express';
-import fs from 'fs/promises';
 import fsSync from 'fs';
 import path from 'path';
 import cors from 'cors';
 import crypto from 'crypto';
 import { fileURLToPath } from 'url';
+import { MongoClient, ObjectId } from 'mongodb';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = 3001;
-const DATA_FILE = path.join(__dirname, '/data/videos.json');
-const CATEGORIES_FILE = path.join(__dirname, '/data/categories.json');
 const ENV_FILE = path.join(__dirname, '.env');
 const SESSION_COOKIE_NAME = 'bcache_admin_session';
 const activeAdminSessions = new Map();
 const loginAttempts = new Map();
+const suggestionSubmissions = new Map();
+
+let mongoClient;
+let mongoDb;
+
+const SUGGESTION_KINDS = new Set(['video', 'channel', 'social', 'blog']);
+const MAX_SUGGESTION_REFERENCE_LEN = 2000;
+const MAX_SUGGESTION_NOTE_LEN = 2000;
+const SUGGESTION_RATE_WINDOW_MS = 60 * 60 * 1000;
+const SUGGESTION_RATE_MAX = 10;
 
 loadEnvFile();
 
@@ -29,15 +37,6 @@ const ADMIN_PASSWORD_SALT = process.env.ADMIN_PASSWORD_SALT || '';
 
 app.use(cors({ origin: FRONTEND_ORIGIN, credentials: true }));
 app.use(express.json());
-
-app.use(async (_req, _res, next) => {
-    try {
-        await ensureCategoriesFile();
-        next();
-    } catch (err) {
-        next(err);
-    }
-});
 
 function loadEnvFile() {
     try {
@@ -55,25 +54,6 @@ function loadEnvFile() {
         }
     } catch {
         // .env is optional in local development.
-    }
-}
-
-async function ensureCategoriesFile() {
-    try {
-        await fs.access(CATEGORIES_FILE);
-    } catch {
-        const videos = await readJson(DATA_FILE, []);
-        const categories = Array.from(new Set(videos.map(video => video.category).filter(Boolean))).sort();
-        await fs.writeFile(CATEGORIES_FILE, JSON.stringify(categories, null, 2));
-    }
-}
-
-async function readJson(filePath, fallback) {
-    try {
-        const data = await fs.readFile(filePath, 'utf-8');
-        return JSON.parse(data);
-    } catch {
-        return fallback;
     }
 }
 
@@ -180,6 +160,146 @@ function normalizeCategoryName(value) {
     return value.trim().replace(/\s+/g, ' ');
 }
 
+function isSuggestionRateLimited(ipAddress) {
+    const now = Date.now();
+    const attempts = (suggestionSubmissions.get(ipAddress) || []).filter(timestamp => now - timestamp < SUGGESTION_RATE_WINDOW_MS);
+    suggestionSubmissions.set(ipAddress, attempts);
+    return attempts.length >= SUGGESTION_RATE_MAX;
+}
+
+function recordSuggestionSubmission(ipAddress) {
+    const attempts = suggestionSubmissions.get(ipAddress) || [];
+    attempts.push(Date.now());
+    suggestionSubmissions.set(ipAddress, attempts);
+}
+
+function validateSuggestionPayload(body) {
+    if (!body || typeof body !== 'object') {
+        return 'Invalid payload';
+    }
+
+    const kind = typeof body.kind === 'string' ? body.kind.trim() : '';
+    if (!SUGGESTION_KINDS.has(kind)) {
+        return 'Invalid kind; use video, channel, social, or blog';
+    }
+
+    const reference = typeof body.reference === 'string' ? body.reference.trim() : '';
+    if (!reference) {
+        return 'A link or description is required';
+    }
+    if (reference.length > MAX_SUGGESTION_REFERENCE_LEN) {
+        return 'Link or description is too long';
+    }
+
+    const note = typeof body.note === 'string' ? body.note.trim() : '';
+    if (note.length > MAX_SUGGESTION_NOTE_LEN) {
+        return 'Note is too long';
+    }
+
+    return null;
+}
+
+/** @returns {Promise<boolean>} */
+async function connectMongo() {
+    const uri = process.env.MONGODB_URI;
+    if (!uri) {
+        console.error('MONGODB_URI is not set. Archive and suggestions require MongoDB.');
+        return false;
+    }
+
+    const maxAttempts = 5;
+    const delayMs = 2000;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            mongoClient = new MongoClient(uri);
+            await mongoClient.connect();
+            mongoDb = mongoClient.db();
+            await mongoDb.collection('suggestions').createIndex({ createdAt: -1 });
+            await mongoDb.collection('suggestions').createIndex({ archived: 1, createdAt: -1 });
+            await mongoDb.collection('videos').createIndex({ id: 1 }, { unique: true });
+            await mongoDb.collection('videos').createIndex({ updatedAt: -1 });
+            console.log('Connected to MongoDB.');
+            return true;
+        } catch (err) {
+            console.error(`MongoDB connection attempt ${attempt}/${maxAttempts} failed:`, err.message);
+            if (mongoClient) {
+                try {
+                    await mongoClient.close();
+                } catch {
+                    // ignore
+                }
+                mongoClient = undefined;
+            }
+            mongoDb = undefined;
+            if (attempt < maxAttempts) {
+                await new Promise(resolve => setTimeout(resolve, delayMs));
+            }
+        }
+    }
+
+    console.error('Could not connect to MongoDB.');
+    return false;
+}
+
+function stripMongoId(doc) {
+    if (!doc || typeof doc !== 'object') return doc;
+    const { _id, ...rest } = doc;
+    return rest;
+}
+
+function buildVideoDocumentForStorage(payload, existing) {
+    const now = new Date();
+    let createdAt = now;
+    if (existing?.createdAt instanceof Date) {
+        createdAt = existing.createdAt;
+    } else if (existing?.createdAt) {
+        const parsed = new Date(existing.createdAt);
+        if (!Number.isNaN(parsed.getTime())) createdAt = parsed;
+    }
+
+    const doc = {
+        id: payload.id,
+        title: payload.title,
+        creator: payload.creator,
+        date: payload.date,
+        description: payload.description,
+        category: payload.category,
+        platforms: payload.platforms,
+        tags: payload.tags,
+        createdAt,
+        updatedAt: now,
+    };
+
+    if (payload.thumbnailUrl !== undefined) {
+        if (payload.thumbnailUrl) doc.thumbnailUrl = payload.thumbnailUrl;
+    } else if (existing?.thumbnailUrl) {
+        doc.thumbnailUrl = existing.thumbnailUrl;
+    }
+
+    return doc;
+}
+
+function parsePageParams(query) {
+    const page = Math.max(1, parseInt(String(query.page || '1'), 10) || 1);
+    const rawSize = parseInt(String(query.pageSize || '20'), 10) || 20;
+    const pageSize = Math.min(100, Math.max(1, rawSize));
+    return { page, pageSize, skip: (page - 1) * pageSize };
+}
+
+async function getAllVideosFromDb() {
+    const docs = await mongoDb
+        .collection('videos')
+        .find({})
+        .sort({ updatedAt: -1, createdAt: -1, id: 1 })
+        .toArray();
+    return docs.map(stripMongoId);
+}
+
+async function getCategoryNamesFromDb() {
+    const docs = await mongoDb.collection('categories').find({}).project({ _id: 0, name: 1 }).toArray();
+    return docs.map(d => d.name).sort((a, b) => a.localeCompare(b));
+}
+
 function isRateLimited(ipAddress) {
     const now = Date.now();
     const windowMs = 10 * 60 * 1000;
@@ -256,18 +376,18 @@ app.post('/api/admin/logout', requireTrustedOrigin, requireAdmin, (req, res) => 
 });
 
 // Get all videos
-app.get('/api/videos', async (req, res) => {
+app.get('/api/videos', async (_req, res) => {
     try {
-        const videos = await readJson(DATA_FILE, []);
+        const videos = await getAllVideosFromDb();
         res.json(videos);
-    } catch (err) {
+    } catch {
         res.status(500).json({ error: 'Failed to read data' });
     }
 });
 
 app.get('/api/categories', async (_req, res) => {
     try {
-        const categories = await readJson(CATEGORIES_FILE, []);
+        const categories = await getCategoryNamesFromDb();
         res.json(categories);
     } catch {
         res.status(500).json({ error: 'Failed to read categories' });
@@ -283,18 +403,37 @@ app.post('/api/categories', requireTrustedOrigin, requireAdmin, async (req, res)
             return res.status(400).json({ error: 'Category name is required' });
         }
 
-        const categories = await readJson(CATEGORIES_FILE, []);
+        const categories = await getCategoryNamesFromDb();
         const alreadyExists = categories.some(existing => existing.toLowerCase() === categoryName.toLowerCase());
 
         if (alreadyExists) {
             return res.status(409).json({ error: 'Category already exists' });
         }
 
-        const nextCategories = [...categories, categoryName].sort((a, b) => a.localeCompare(b));
-        await fs.writeFile(CATEGORIES_FILE, JSON.stringify(nextCategories, null, 2));
+        await mongoDb.collection('categories').insertOne({ name: categoryName });
+        const nextCategories = await getCategoryNamesFromDb();
         res.json({ success: true, categories: nextCategories });
     } catch {
         res.status(500).json({ error: 'Failed to save category' });
+    }
+});
+
+app.get('/api/admin/videos', requireAdmin, async (req, res) => {
+    try {
+        const { page, pageSize, skip } = parsePageParams(req.query);
+        const col = mongoDb.collection('videos');
+        const total = await col.countDocuments({});
+        const docs = await col
+            .find({})
+            .sort({ updatedAt: -1, createdAt: -1, id: 1 })
+            .skip(skip)
+            .limit(pageSize)
+            .toArray();
+
+        const items = docs.map(stripMongoId);
+        res.json({ items, total, page, pageSize });
+    } catch {
+        res.status(500).json({ error: 'Failed to load videos' });
     }
 });
 
@@ -307,24 +446,20 @@ app.post('/api/videos', requireTrustedOrigin, requireAdmin, async (req, res) => 
             return res.status(400).json({ error: validationError });
         }
 
-        const videos = await readJson(DATA_FILE, []);
-        const categories = await readJson(CATEGORIES_FILE, []);
-
+        const categories = await getCategoryNamesFromDb();
         const hasCategory = categories.some(category => category.toLowerCase() === newVideo.category.trim().toLowerCase());
         if (!hasCategory) {
             return res.status(400).json({ error: 'Category does not exist. Create it first from the admin panel.' });
         }
 
-        const index = videos.findIndex(v => v.id === newVideo.id);
-        if (index !== -1) {
-            videos[index] = newVideo;
-        } else {
-            videos.push(newVideo);
-        }
-
-        await fs.writeFile(DATA_FILE, JSON.stringify(videos, null, 2));
-        res.json({ success: true, video: newVideo });
+        const existing = await mongoDb.collection('videos').findOne({ id: newVideo.id });
+        const doc = buildVideoDocumentForStorage(newVideo, existing);
+        await mongoDb.collection('videos').replaceOne({ id: newVideo.id }, doc, { upsert: true });
+        res.json({ success: true, video: stripMongoId(doc) });
     } catch (err) {
+        if (err.code === 11000) {
+            return res.status(409).json({ error: 'A video with this id already exists' });
+        }
         res.status(500).json({ error: 'Failed to save data' });
     }
 });
@@ -332,20 +467,127 @@ app.post('/api/videos', requireTrustedOrigin, requireAdmin, async (req, res) => 
 // Delete video
 app.delete('/api/videos/:id', requireTrustedOrigin, requireAdmin, async (req, res) => {
     try {
-        const videos = await readJson(DATA_FILE, []);
-        const filtered = videos.filter(v => v.id !== req.params.id);
-        await fs.writeFile(DATA_FILE, JSON.stringify(filtered, null, 2));
+        await mongoDb.collection('videos').deleteOne({ id: req.params.id });
         res.json({ success: true });
-    } catch (err) {
+    } catch {
         res.status(500).json({ error: 'Failed to delete data' });
     }
 });
 
-app.listen(PORT, () => {
-    if (!ADMIN_PASSWORD_HASH || !ADMIN_PASSWORD_SALT) {
-        console.warn('ADMIN_PASSWORD_HASH / ADMIN_PASSWORD_SALT are not set. Use a hashed admin password before deploying publicly.');
-    } else if (ADMIN_PASSWORD === 'change-this-admin-password') {
-        console.warn('Plain ADMIN_PASSWORD fallback is using the default value. Keep it unset when using hashed credentials.');
+app.post('/api/suggestions', requireTrustedOrigin, async (req, res) => {
+    const ipAddress = req.ip || 'unknown';
+    if (isSuggestionRateLimited(ipAddress)) {
+        return res.status(429).json({ error: 'Too many suggestions. Please try again later.' });
     }
-    console.log(`Simple backend running at http://localhost:${PORT}`);
+
+    const validationError = validateSuggestionPayload(req.body);
+    if (validationError) {
+        return res.status(400).json({ error: validationError });
+    }
+
+    const kind = req.body.kind.trim();
+    const reference = req.body.reference.trim();
+    const note = typeof req.body.note === 'string' ? req.body.note.trim() : '';
+
+    try {
+        const result = await mongoDb.collection('suggestions').insertOne({
+            kind,
+            reference,
+            note,
+            archived: false,
+            createdAt: new Date(),
+        });
+        recordSuggestionSubmission(ipAddress);
+        res.status(201).json({ success: true, id: result.insertedId.toString() });
+    } catch {
+        res.status(500).json({ error: 'Failed to save suggestion' });
+    }
 });
+
+app.get('/api/suggestions', requireAdmin, async (req, res) => {
+    try {
+        const { page, pageSize, skip } = parsePageParams(req.query);
+        const includeArchived = String(req.query.includeArchived || '') === 'true';
+
+        const filter = includeArchived ? {} : { $or: [{ archived: false }, { archived: { $exists: false } }] };
+
+        const col = mongoDb.collection('suggestions');
+        const total = await col.countDocuments(filter);
+        const docs = await col.find(filter).sort({ createdAt: -1 }).skip(skip).limit(pageSize).toArray();
+
+        const items = docs.map(doc => ({
+            id: doc._id.toString(),
+            kind: doc.kind,
+            reference: doc.reference,
+            note: doc.note || '',
+            archived: Boolean(doc.archived),
+            createdAt: doc.createdAt instanceof Date ? doc.createdAt.toISOString() : doc.createdAt,
+        }));
+
+        res.json({ items, total, page, pageSize, includeArchived });
+    } catch {
+        res.status(500).json({ error: 'Failed to load suggestions' });
+    }
+});
+
+app.patch('/api/suggestions/:id', requireTrustedOrigin, requireAdmin, async (req, res) => {
+    let oid;
+    try {
+        oid = new ObjectId(req.params.id);
+    } catch {
+        return res.status(400).json({ error: 'Invalid suggestion id' });
+    }
+
+    const archived = req.body?.archived;
+    if (typeof archived !== 'boolean') {
+        return res.status(400).json({ error: 'Body must include archived: true or false' });
+    }
+
+    try {
+        const result = await mongoDb.collection('suggestions').updateOne({ _id: oid }, { $set: { archived } });
+        if (result.matchedCount === 0) {
+            return res.status(404).json({ error: 'Suggestion not found' });
+        }
+        res.json({ success: true });
+    } catch {
+        res.status(500).json({ error: 'Failed to update suggestion' });
+    }
+});
+
+app.delete('/api/suggestions/:id', requireTrustedOrigin, requireAdmin, async (req, res) => {
+    let oid;
+    try {
+        oid = new ObjectId(req.params.id);
+    } catch {
+        return res.status(400).json({ error: 'Invalid suggestion id' });
+    }
+
+    try {
+        const result = await mongoDb.collection('suggestions').deleteOne({ _id: oid });
+        if (result.deletedCount === 0) {
+            return res.status(404).json({ error: 'Suggestion not found' });
+        }
+        res.json({ success: true });
+    } catch {
+        res.status(500).json({ error: 'Failed to delete suggestion' });
+    }
+});
+
+async function startServer() {
+    const connected = await connectMongo();
+    if (!connected || !mongoDb) {
+        console.error('Cannot start: MongoDB is required for the archive (videos, categories, suggestions).');
+        process.exit(1);
+    }
+
+    app.listen(PORT, () => {
+        if (!ADMIN_PASSWORD_HASH || !ADMIN_PASSWORD_SALT) {
+            console.warn('ADMIN_PASSWORD_HASH / ADMIN_PASSWORD_SALT are not set. Use a hashed admin password before deploying publicly.');
+        } else if (ADMIN_PASSWORD === 'change-this-admin-password') {
+            console.warn('Plain ADMIN_PASSWORD fallback is using the default value. Keep it unset when using hashed credentials.');
+        }
+        console.log(`Simple backend running at http://localhost:${PORT}`);
+    });
+}
+
+startServer();

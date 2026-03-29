@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Search, Archive, Wallet, Menu } from 'lucide-react';
+import { Search, Archive, Wallet, Menu, Lightbulb } from 'lucide-react';
+import { useOpenSuggestPreservation } from '../context/SuggestPreservationContext';
 
 interface LayoutProps {
     children: React.ReactNode;
@@ -9,6 +10,7 @@ interface LayoutProps {
 
 export const Layout: React.FC<LayoutProps> = ({ children, onSearch }) => {
     const [isMenuOpen, setIsMenuOpen] = React.useState(false);
+    const openSuggest = useOpenSuggestPreservation();
 
     const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (onSearch) onSearch(e.target.value);
@@ -39,6 +41,14 @@ export const Layout: React.FC<LayoutProps> = ({ children, onSearch }) => {
                         <Link to="/about" className="text-gray-300 hover:text-white transition-colors">About</Link>
                         <Link to="/categories" className="text-gray-300 hover:text-white transition-colors">Categories</Link>
                         <Link to="/downloads" className="text-gray-300 hover:text-white transition-colors">Downloads</Link>
+                        <button
+                            type="button"
+                            onClick={() => openSuggest()}
+                            className="flex items-center gap-1.5 text-gray-300 hover:text-primary transition-colors"
+                        >
+                            <Lightbulb className="w-4 h-4" />
+                            <span>Suggest</span>
+                        </button>
                         <a href="#donate" className="flex items-center space-x-1 bg-primary hover:bg-primary-dark text-black px-4 py-2 rounded-full font-semibold transition-colors">
                             <Wallet className="w-4 h-4" />
                             <span>Donate</span>
@@ -63,6 +73,17 @@ export const Layout: React.FC<LayoutProps> = ({ children, onSearch }) => {
                             <Link to="/about" className="text-gray-300 hover:text-white" onClick={() => setIsMenuOpen(false)}>About</Link>
                             <Link to="/categories" className="text-gray-300 hover:text-white" onClick={() => setIsMenuOpen(false)}>Categories</Link>
                             <Link to="/downloads" className="text-gray-300 hover:text-white" onClick={() => setIsMenuOpen(false)}>Downloads</Link>
+                            <button
+                                type="button"
+                                className="text-left text-primary font-medium flex items-center gap-2"
+                                onClick={() => {
+                                    setIsMenuOpen(false);
+                                    openSuggest();
+                                }}
+                            >
+                                <Lightbulb className="w-4 h-4" />
+                                Suggest for preservation
+                            </button>
                             <a href="#donate" className="text-primary font-bold" onClick={() => setIsMenuOpen(false)}>Donate BCH</a>
                         </div>
                     </div>
@@ -111,9 +132,19 @@ export const Layout: React.FC<LayoutProps> = ({ children, onSearch }) => {
                             <p className="mt-4 text-gray-500 text-sm font-medium">Scan code to donate BCH</p>
                         </div>
                     </div>
-                    <div className="mt-12 pt-8 border-t border-gray-800 flex flex-col md:flex-row items-center justify-between text-gray-500 text-sm">
+                    <div className="mt-12 pt-8 border-t border-gray-800 flex flex-col md:flex-row md:flex-wrap items-center justify-between gap-4 text-gray-500 text-sm">
                         <div>&copy; {new Date().getFullYear()} BCache - Bitcoin Cash Archival Project. Fast. Simple. Permanent.</div>
-                        <Link to="/admin" className="mt-4 md:mt-0 text-gray-700 hover:text-gray-500 transition-colors">Admin Login</Link>
+                        <div className="flex flex-wrap items-center gap-4 md:gap-6">
+                            <button
+                                type="button"
+                                onClick={() => openSuggest()}
+                                className="text-primary hover:text-primary-dark font-medium transition-colors flex items-center gap-1.5"
+                            >
+                                <Lightbulb className="w-4 h-4" />
+                                Suggest a video, channel, or link
+                            </button>
+                            <Link to="/admin" className="text-gray-700 hover:text-gray-500 transition-colors">Admin Login</Link>
+                        </div>
                     </div>
                 </div>
             </footer>

@@ -24,6 +24,7 @@
   "homepage": "https://github.com/atul262002/video_archiver#readme",
   "dependencies": {
     "cors": "^2.8.6",
-    "express": "^5.2.1"
+    "express": "^5.2.1",
+    "mongodb": "^6.21.0"
   }
 }

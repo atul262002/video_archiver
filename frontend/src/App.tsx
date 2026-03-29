@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Layout } from './components/Layout';
+import { SuggestPreservationProvider } from './context/SuggestPreservationContext';
 import { Home } from './pages/Home';
 import { CategoryPage } from './pages/CategoryPage';
 import { VideoPage } from './pages/VideoPage';
@@ -152,13 +153,16 @@ function App() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-dark flex items-center justify-center">
-        <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-      </div>
+      <SuggestPreservationProvider>
+        <div className="min-h-screen bg-dark flex items-center justify-center">
+          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+        </div>
+      </SuggestPreservationProvider>
     );
   }
 
   return (
+    <SuggestPreservationProvider>
     <Router>
       <Layout onSearch={setSearchQuery}>
         <Routes>
@@ -172,7 +176,6 @@ function App() {
             path="/admin"
             element={
               <AdminPanel
-                videos={videos}
                 categories={categories}
                 isAuthenticated={isAdminAuthenticated}
                 onLogin={handleAdminLogin}
@@ -186,6 +189,7 @@ function App() {
         </Routes>
       </Layout>
     </Router>
+    </SuggestPreservationProvider>
   );
 }
 
