@@ -344,7 +344,7 @@ function verifyAdminPassword(password) {
     return password === ADMIN_PASSWORD;
 }
 
-app.get('/api/admin/session', (req, res) => {
+app.get('/video-api/admin/session', (req, res) => {
     const sessionId = getCookieValue(req, SESSION_COOKIE_NAME);
     const session = sessionId ? activeAdminSessions.get(sessionId) : null;
 
@@ -361,7 +361,7 @@ app.get('/api/admin/session', (req, res) => {
     res.json({ authenticated: true });
 });
 
-app.post('/api/admin/login', requireTrustedOrigin, (req, res) => {
+app.post('/video-api/admin/login', requireTrustedOrigin, (req, res) => {
     const ipAddress = req.ip || 'unknown';
 
     if (isRateLimited(ipAddress)) {
@@ -381,7 +381,7 @@ app.post('/api/admin/login', requireTrustedOrigin, (req, res) => {
     res.json({ success: true });
 });
 
-app.post('/api/admin/logout', requireTrustedOrigin, requireAdmin, (req, res) => {
+app.post('/video-api/admin/logout', requireTrustedOrigin, requireAdmin, (req, res) => {
     const sessionId = getCookieValue(req, SESSION_COOKIE_NAME);
     if (sessionId) {
         activeAdminSessions.delete(sessionId);
@@ -391,7 +391,7 @@ app.post('/api/admin/logout', requireTrustedOrigin, requireAdmin, (req, res) => 
 });
 
 // Get all videos
-app.get('/api/videos', async (_req, res) => {
+app.get('/video-api/videos', async (_req, res) => {
     try {
         const videos = await getAllVideosFromDb();
         res.json(videos);
@@ -400,7 +400,7 @@ app.get('/api/videos', async (_req, res) => {
     }
 });
 
-app.get('/api/categories', async (_req, res) => {
+app.get('/video-api/categories', async (_req, res) => {
     try {
         const categories = await getCategoryNamesFromDb();
         res.json(categories);
@@ -409,7 +409,7 @@ app.get('/api/categories', async (_req, res) => {
     }
 });
 
-app.post('/api/categories', requireTrustedOrigin, requireAdmin, async (req, res) => {
+app.post('/video-api/categories', requireTrustedOrigin, requireAdmin, async (req, res) => {
     try {
         const rawName = typeof req.body?.name === 'string' ? req.body.name : '';
         const categoryName = normalizeCategoryName(rawName);
@@ -433,7 +433,7 @@ app.post('/api/categories', requireTrustedOrigin, requireAdmin, async (req, res)
     }
 });
 
-app.get('/api/admin/videos', requireAdmin, async (req, res) => {
+app.get('/video-api/admin/videos', requireAdmin, async (req, res) => {
     try {
         const { page, pageSize, skip } = parsePageParams(req.query);
         const col = mongoDb.collection('videos');
@@ -453,7 +453,7 @@ app.get('/api/admin/videos', requireAdmin, async (req, res) => {
 });
 
 // Add/Update video
-app.post('/api/videos', requireTrustedOrigin, requireAdmin, async (req, res) => {
+app.post('/video-api/videos', requireTrustedOrigin, requireAdmin, async (req, res) => {
     try {
         const newVideo = req.body;
         const validationError = validateVideoPayload(newVideo);
@@ -480,7 +480,7 @@ app.post('/api/videos', requireTrustedOrigin, requireAdmin, async (req, res) => 
 });
 
 // Delete video
-app.delete('/api/videos/:id', requireTrustedOrigin, requireAdmin, async (req, res) => {
+app.delete('/video-api/videos/:id', requireTrustedOrigin, requireAdmin, async (req, res) => {
     try {
         await mongoDb.collection('videos').deleteOne({ id: req.params.id });
         res.json({ success: true });
@@ -489,7 +489,7 @@ app.delete('/api/videos/:id', requireTrustedOrigin, requireAdmin, async (req, re
     }
 });
 
-app.post('/api/suggestions', requireTrustedOrigin, async (req, res) => {
+app.post('/video-api/suggestions', requireTrustedOrigin, async (req, res) => {
     const ipAddress = req.ip || 'unknown';
     if (isSuggestionRateLimited(ipAddress)) {
         return res.status(429).json({ error: 'Too many suggestions. Please try again later.' });
@@ -519,7 +519,7 @@ app.post('/api/suggestions', requireTrustedOrigin, async (req, res) => {
     }
 });
 
-app.get('/api/suggestions', requireAdmin, async (req, res) => {
+app.get('/video-api/suggestions', requireAdmin, async (req, res) => {
     try {
         const { page, pageSize, skip } = parsePageParams(req.query);
         const includeArchived = String(req.query.includeArchived || '') === 'true';
@@ -545,7 +545,7 @@ app.get('/api/suggestions', requireAdmin, async (req, res) => {
     }
 });
 
-app.patch('/api/suggestions/:id', requireTrustedOrigin, requireAdmin, async (req, res) => {
+app.patch('/video-api/suggestions/:id', requireTrustedOrigin, requireAdmin, async (req, res) => {
     let oid;
     try {
         oid = new ObjectId(req.params.id);
@@ -569,7 +569,7 @@ app.patch('/api/suggestions/:id', requireTrustedOrigin, requireAdmin, async (req
     }
 });
 
-app.delete('/api/suggestions/:id', requireTrustedOrigin, requireAdmin, async (req, res) => {
+app.delete('/video-api/suggestions/:id', requireTrustedOrigin, requireAdmin, async (req, res) => {
     let oid;
     try {
         oid = new ObjectId(req.params.id);
