@@ -30,16 +30,23 @@ loadEnvFile();
 
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || 'http://localhost:5173';
 const COOKIE_SECURE = process.env.COOKIE_SECURE === 'true' || process.env.NODE_ENV === 'production';
+const COOKIE_SAME_SITE = process.env.COOKIE_SAME_SITE || (COOKIE_SECURE ? 'None' : 'Lax');
 const SESSION_TTL_MS = Number(process.env.ADMIN_SESSION_TTL_MS || 1000 * 60 * 60 * 12);
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'change-this-admin-password';
 const ADMIN_PASSWORD_HASH = process.env.ADMIN_PASSWORD_HASH || '';
 const ADMIN_PASSWORD_SALT = process.env.ADMIN_PASSWORD_SALT || '';
 
-//app.use(cors({ origin: FRONTEND_ORIGIN, credentials: true }));
-const ALLOWED_ORIGINS = [
+const configuredOrigins = (process.env.ALLOWED_ORIGINS || '')
+    .split(',')
+    .map(origin => origin.trim())
+    .filter(Boolean);
+
+const ALLOWED_ORIGINS = [...new Set([
+    FRONTEND_ORIGIN,
     'https://video-archiver.vercel.app',
-    'http://localhost:5173',   // for local dev
-];
+    'http://localhost:5173',
+    ...configuredOrigins,
+])];
 
 app.use(cors({
     origin: (origin, callback) => {
@@ -112,7 +119,7 @@ function setSessionCookie(res, sessionId, expiresAt) {
         `${SESSION_COOKIE_NAME}=${encodeURIComponent(sessionId)}`,
         'Path=/',
         'HttpOnly',
-        'SameSite=Strict',
+        `SameSite=${COOKIE_SAME_SITE}`,
         `Expires=${expires}`,
     ];
 
@@ -128,7 +135,7 @@ function clearSessionCookie(res) {
         `${SESSION_COOKIE_NAME}=`,
         'Path=/',
         'HttpOnly',
-        'SameSite=Strict',
+        `SameSite=${COOKIE_SAME_SITE}`,
         'Expires=Thu, 01 Jan 1970 00:00:00 GMT',
     ];
 
@@ -141,7 +148,7 @@ function clearSessionCookie(res) {
 
 function requireTrustedOrigin(req, res, next) {
     const origin = req.headers.origin;
-    if (origin && origin !== FRONTEND_ORIGIN) {
+    if (origin && !ALLOWED_ORIGINS.includes(origin)) {
         return res.status(403).json({ error: 'Untrusted origin' });
     }
     next();

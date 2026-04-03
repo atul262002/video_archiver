@@ -35,6 +35,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     const [adminVideosTotal, setAdminVideosTotal] = useState(0);
     const [adminVideoPage, setAdminVideoPage] = useState(1);
     const [adminVideoPageSize, setAdminVideoPageSize] = useState(15);
+    const [adminVideosError, setAdminVideosError] = useState('');
 
     const [crowdSuggestions, setCrowdSuggestions] = useState<PreservationSuggestion[]>([]);
     const [suggestionsTotal, setSuggestionsTotal] = useState(0);
@@ -45,6 +46,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     const [suggestionsError, setSuggestionsError] = useState('');
 
     const loadAdminVideos = useCallback(async () => {
+        setAdminVideosError('');
         try {
             const params = new URLSearchParams({
                 page: String(adminVideoPage),
@@ -53,15 +55,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             const response = await fetch(`${ADMIN_VIDEOS_API_URL}?${params}`, { credentials: 'include' });
             const data = await response.json().catch(() => ({}));
             if (!response.ok) {
+                if (response.status === 401) {
+                    await onLogout();
+                }
                 throw new Error(data.error || 'Failed to load videos');
             }
             setAdminVideos(Array.isArray(data.items) ? data.items : []);
             setAdminVideosTotal(typeof data.total === 'number' ? data.total : 0);
-        } catch {
+        } catch (err) {
             setAdminVideos([]);
             setAdminVideosTotal(0);
+            setAdminVideosError(err instanceof Error ? err.message : 'Failed to load videos');
         }
-    }, [adminVideoPage, adminVideoPageSize]);
+    }, [adminVideoPage, adminVideoPageSize, onLogout]);
 
     const loadCrowdSuggestions = useCallback(async () => {
         setSuggestionsLoading(true);
@@ -619,6 +625,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     </label>
                 </div>
                 <p className="text-sm text-gray-500 mb-4">Sorted with most recently added or updated first.</p>
+                {adminVideosError ? (
+                    <p className="text-sm text-amber-400/90 mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3">
+                        {adminVideosError}
+                    </p>
+                ) : null}
                 <div className="grid grid-cols-1 gap-4">
                     {adminVideos.map(video => (
                         <div key={video.id} className="bg-gray-900 border border-gray-800 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center gap-4 group hover:border-gray-700 transition-colors">
