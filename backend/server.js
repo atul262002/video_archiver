@@ -113,6 +113,22 @@ function getCookieValue(req, cookieName) {
     return '';
 }
 
+function getAdminSessionDebugInfo(req) {
+    const sessionId = getCookieValue(req, SESSION_COOKIE_NAME);
+    const session = sessionId ? activeAdminSessions.get(sessionId) : null;
+
+    return {
+        origin: req.headers.origin || '',
+        hasCookieHeader: Boolean(req.headers.cookie),
+        cookieHeader: req.headers.cookie || '',
+        hasSessionCookie: Boolean(sessionId),
+        sessionIdPreview: sessionId ? `${sessionId.slice(0, 8)}...` : '',
+        hasActiveSession: Boolean(session),
+        sessionExpired: session ? session.expiresAt < Date.now() : null,
+        expiresAt: session ? new Date(session.expiresAt).toISOString() : null,
+    };
+}
+
 function setSessionCookie(res, sessionId, expiresAt) {
     const expires = new Date(expiresAt).toUTCString();
     const parts = [
@@ -368,6 +384,12 @@ app.get('/video-api/admin/session', (req, res) => {
     res.json({ authenticated: true });
 });
 
+app.get('/video-api/admin/debug', (req, res) => {
+    const debugInfo = getAdminSessionDebugInfo(req);
+    console.log('Admin debug:', debugInfo);
+    res.json(debugInfo);
+});
+
 app.post('/video-api/admin/login', requireTrustedOrigin, (req, res) => {
     const ipAddress = req.ip || 'unknown';
 
@@ -442,6 +464,7 @@ app.post('/video-api/categories', requireTrustedOrigin, requireAdmin, async (req
 
 app.get('/video-api/admin/videos', requireAdmin, async (req, res) => {
     try {
+        console.log('Admin videos request:', getAdminSessionDebugInfo(req));
         const { page, pageSize, skip } = parsePageParams(req.query);
         const col = mongoDb.collection('videos');
         const total = await col.countDocuments({});
