@@ -44,7 +44,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, onSearch }) => {
                         <button
                             type="button"
                             onClick={() => openSuggest()}
-                            className="flex items-center gap-1.5 text-gray-300 hover:text-primary transition-colors"
+                            className="flex items-center gap-1.5 text-gray-300 hover:text-primary transition-colors cursor-pointer"
                         >
                             <Lightbulb className="w-4 h-4" />
                             <span>Suggest</span>
@@ -75,7 +75,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, onSearch }) => {
                             <Link to="/downloads" className="text-gray-300 hover:text-white" onClick={() => setIsMenuOpen(false)}>Downloads</Link>
                             <button
                                 type="button"
-                                className="text-left text-primary font-medium flex items-center gap-2"
+                                className="text-left text-primary font-medium flex items-center gap-2 cursor-pointer"
                                 onClick={() => {
                                     setIsMenuOpen(false);
                                     openSuggest();
@@ -96,7 +96,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, onSearch }) => {
 
             <footer id="donate" className="bg-dark-footer border-t border-gray-800 py-12">
                 <div className="container mx-auto px-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-start">
                         <div>
                             <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
                                 <Wallet className="text-primary" />
@@ -109,10 +109,10 @@ export const Layout: React.FC<LayoutProps> = ({ children, onSearch }) => {
                                 <p className="text-xs text-gray-500 uppercase tracking-widest mb-2 font-bold">BCH Address</p>
                                 <div className="flex flex-col sm:flex-row gap-2 items-center">
                                     <code className="bg-black p-3 rounded flex-1 text-sm break-all font-mono text-primary border border-gray-800">
-                                        bitcoincash:pp88lyv9as7KmS9pXvS9S9S9S9S9S9S9S9S9S9S9S9
+                                        bitcoincash:zqvt9f8g3mpm9ut5hq7yy8c5a7566n9nzs4tt29mh8
                                     </code>
                                     <button
-                                        onClick={() => navigator.clipboard.writeText('bitcoincash:pp88lyv9as7KmS9pXvS9S9S9S9S9S9S9S9S9S9S9S9')}
+                                        onClick={() => navigator.clipboard.writeText('bitcoincash:zqvt9f8g3mpm9ut5hq7yy8c5a7566n9nzs4tt29mh8')}
                                         className="w-full sm:w-auto bg-gray-800 hover:bg-gray-700 text-white px-4 py-3 rounded font-semibold transition-colors shrink-0"
                                     >
                                         Copy
@@ -120,12 +120,12 @@ export const Layout: React.FC<LayoutProps> = ({ children, onSearch }) => {
                                 </div>
                             </div>
                         </div>
-                        <div className="flex flex-col items-center justify-center">
+                        <div className="flex flex-col items-center justify-start pt-1">
                             <div className="bg-white p-4 rounded-xl shadow-2xl shadow-primary/20">
                                 {/* QR Code Placeholder - In a real app, use a QR generator library */}
-                                <div className="w-48 h-48 bg-gray-200 flex items-center justify-center text-black text-center p-4">
+                                <div className="w-40 h-40 bg-gray-200 flex items-center justify-center text-black text-center p-3">
                                     <div className="flex flex-col items-center">
-                                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=bitcoincash:pp88lyv9as7KmS9pXvS9S9S9S9S9S9S9S9S9S9S9S9" alt="BCH Donation QR Code" className="w-full h-full" />
+                                        <img src="/qr-code.png" alt="BCH Donation QR Code" className="w-full h-full" />
                                     </div>
                                 </div>
                             </div>
@@ -133,12 +133,12 @@ export const Layout: React.FC<LayoutProps> = ({ children, onSearch }) => {
                         </div>
                     </div>
                     <div className="mt-12 pt-8 border-t border-gray-800 flex flex-col md:flex-row md:flex-wrap items-center justify-between gap-4 text-gray-500 text-sm">
-                        <div>&copy; {new Date().getFullYear()} BCache - Bitcoin Cash Archival Project. Fast. Simple. Permanent.</div>
+                        <div>&copy; {new Date().getFullYear()} BCache - Preserving the History of Bitcoin Cash.</div>
                         <div className="flex flex-wrap items-center gap-4 md:gap-6">
                             <button
                                 type="button"
                                 onClick={() => openSuggest()}
-                                className="text-primary hover:text-primary-dark font-medium transition-colors flex items-center gap-1.5"
+                                className="text-primary hover:text-primary-dark font-medium transition-colors flex items-center gap-1.5 cursor-pointer"
                             >
                                 <Lightbulb className="w-4 h-4" />
                                 Suggest a video, channel, or link

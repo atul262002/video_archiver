@@ -72,17 +72,16 @@ export const About: React.FC = () => {
           <div>
             <h3 className="text-xl font-bold mb-2 text-white flex items-center gap-2">
               <Lightbulb className="w-6 h-6 text-primary" />
-              Crowdsource the archive
+              Crowdsourced archive
             </h3>
             <p className="text-gray-400 leading-relaxed max-w-2xl">
-              Know a video, channel, social post, or article that must be saved?
-              Send a suggestion — our team reviews every submission.
+              Know a video, channel, social post, or article that must be archived? Send a suggestion, our team will review and add it to the archive.
             </p>
           </div>
           <button
             type="button"
             onClick={() => openSuggest()}
-            className="shrink-0 inline-flex items-center justify-center gap-2 rounded-full bg-primary hover:bg-primary-dark text-black font-bold px-6 py-3 transition-colors"
+            className="shrink-0 inline-flex items-center justify-center gap-2 rounded-full bg-primary hover:bg-primary-dark text-black font-bold px-6 py-3 transition-colors cursor-pointer"
           >
             <Lightbulb className="w-5 h-5" />
             Suggest for preservation

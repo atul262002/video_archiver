@@ -21,12 +21,12 @@ export const Home: React.FC<HomeProps> = ({ videos, categories }) => {
                         Preserving the History of <span className="text-primary text-glow">Bitcoin Cash</span>
                     </h2>
                     <p className="text-gray-400 text-lg mb-6 leading-relaxed">
-                        A fast, simple archive of important BCH related videos. Built for speed, readability, and permanence.
+                        The permanent preservation of important presentations, conferences, podcasts, and historical media related to Bitcoin Cash.
                     </p>
                     <button
                         type="button"
                         onClick={() => openSuggest()}
-                        className="mb-8 w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-primary/10 px-5 py-2.5 text-sm font-semibold text-primary hover:bg-primary/20 transition-colors"
+                        className="mb-8 w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-primary/10 px-5 py-2.5 text-sm font-semibold text-primary hover:bg-primary/20 transition-colors cursor-pointer"
                     >
                         <Lightbulb className="w-4 h-4 shrink-0" />
                         Suggest something to preserve
