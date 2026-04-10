@@ -46,7 +46,7 @@ export const About: React.FC = () => {
           <h3 className="text-xl font-bold mb-4 text-white">
             Brought to you by The Bitcoin Cash Podcast
           </h3>
-          <p className="text-gray-400 leading-relaxed" />
+          <p className="leading-relaxed" />
           <p>
             This archive is proudly maintained and operated by{" "}
             <strong>The Bitcoin Cash Podcast</strong> team. We believe in
@@ -59,7 +59,7 @@ export const About: React.FC = () => {
           <h3 className="text-xl font-bold mb-4 text-white">
             Community Support
           </h3>
-          <p className="text-gray-400 leading-relaxed">
+          <p className="leading-relaxed">
             Your support is important to keep this archive running. If you
             believe this work matters, please consider donating to help cover
             running costs. Donation address can be found in the footer.
