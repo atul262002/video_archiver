@@ -48,6 +48,28 @@ const ALLOWED_ORIGINS = [...new Set([
     ...configuredOrigins,
 ])];
 
+app.use((req, res, next) => {
+    if (!req.path.startsWith('/video-api')) {
+        return next();
+    }
+
+    const startedAt = Date.now();
+    const context = getRequestLogContext(req);
+    logApiEvent('log', 'Request started', context);
+
+    res.on('finish', () => {
+        const statusCode = res.statusCode;
+        const level = statusCode >= 500 ? 'error' : statusCode >= 400 ? 'warn' : 'log';
+        logApiEvent(level, 'Request finished', {
+            ...context,
+            statusCode,
+            durationMs: Date.now() - startedAt,
+        });
+    });
+
+    next();
+});
+
 app.use(cors({
     origin: (origin, callback) => {
         if (!origin || ALLOWED_ORIGINS.includes(origin)) {
@@ -59,6 +81,29 @@ app.use(cors({
     credentials: true,
 }));
 app.use(express.json());
+
+function getRequestLogContext(req) {
+    return {
+        method: req.method,
+        path: req.originalUrl || req.url,
+        ip: req.ip || req.socket?.remoteAddress || 'unknown',
+        origin: req.headers.origin || '',
+    };
+}
+
+function logApiEvent(level, message, context = {}, err) {
+    const details = {
+        ...context,
+        timestamp: new Date().toISOString(),
+    };
+
+    if (err) {
+        details.error = err.message || String(err);
+        if (err.stack) details.stack = err.stack;
+    }
+
+    console[level](`[API] ${message}`, details);
+}
 
 function loadEnvFile() {
     try {
@@ -367,6 +412,10 @@ function verifyAdminPassword(password) {
     return password === ADMIN_PASSWORD;
 }
 
+app.get('/video-api/test', (req, res) => {
+    res.json({ authenticated: true });
+});
+
 app.get('/video-api/admin/session', (req, res) => {
     const sessionId = getCookieValue(req, SESSION_COOKIE_NAME);
     const session = sessionId ? activeAdminSessions.get(sessionId) : null;
@@ -420,20 +469,22 @@ app.post('/video-api/admin/logout', requireTrustedOrigin, requireAdmin, (req, re
 });
 
 // Get all videos
-app.get('/video-api/videos', async (_req, res) => {
+app.get('/video-api/videos', async (req, res) => {
     try {
         const videos = await getAllVideosFromDb();
         res.json(videos);
-    } catch {
+    } catch (err) {
+        logApiEvent('error', 'Failed to load public videos', getRequestLogContext(req), err);
         res.status(500).json({ error: 'Failed to read data' });
     }
 });
 
-app.get('/video-api/categories', async (_req, res) => {
+app.get('/video-api/categories', async (req, res) => {
     try {
         const categories = await getCategoryNamesFromDb();
         res.json(categories);
-    } catch {
+    } catch (err) {
+        logApiEvent('error', 'Failed to load categories', getRequestLogContext(req), err);
         res.status(500).json({ error: 'Failed to read categories' });
     }
 });
@@ -457,7 +508,8 @@ app.post('/video-api/categories', requireTrustedOrigin, requireAdmin, async (req
         await mongoDb.collection('categories').insertOne({ name: categoryName });
         const nextCategories = await getCategoryNamesFromDb();
         res.json({ success: true, categories: nextCategories });
-    } catch {
+    } catch (err) {
+        logApiEvent('error', 'Failed to save category', getRequestLogContext(req), err);
         res.status(500).json({ error: 'Failed to save category' });
     }
 });
@@ -477,7 +529,8 @@ app.get('/video-api/admin/videos', requireAdmin, async (req, res) => {
 
         const items = docs.map(stripMongoId);
         res.json({ items, total, page, pageSize });
-    } catch {
+    } catch (err) {
+        logApiEvent('error', 'Failed to load admin videos', getRequestLogContext(req), err);
         res.status(500).json({ error: 'Failed to load videos' });
     }
 });
@@ -502,6 +555,7 @@ app.post('/video-api/videos', requireTrustedOrigin, requireAdmin, async (req, re
         await mongoDb.collection('videos').replaceOne({ id: newVideo.id }, doc, { upsert: true });
         res.json({ success: true, video: stripMongoId(doc) });
     } catch (err) {
+        logApiEvent('error', 'Failed to save video', getRequestLogContext(req), err);
         if (err.code === 11000) {
             return res.status(409).json({ error: 'A video with this id already exists' });
         }
@@ -514,7 +568,8 @@ app.delete('/video-api/videos/:id', requireTrustedOrigin, requireAdmin, async (r
     try {
         await mongoDb.collection('videos').deleteOne({ id: req.params.id });
         res.json({ success: true });
-    } catch {
+    } catch (err) {
+        logApiEvent('error', 'Failed to delete video', getRequestLogContext(req), err);
         res.status(500).json({ error: 'Failed to delete data' });
     }
 });
@@ -544,7 +599,8 @@ app.post('/video-api/suggestions', requireTrustedOrigin, async (req, res) => {
         });
         recordSuggestionSubmission(ipAddress);
         res.status(201).json({ success: true, id: result.insertedId.toString() });
-    } catch {
+    } catch (err) {
+        logApiEvent('error', 'Failed to save suggestion', getRequestLogContext(req), err);
         res.status(500).json({ error: 'Failed to save suggestion' });
     }
 });
@@ -570,7 +626,8 @@ app.get('/video-api/suggestions', requireAdmin, async (req, res) => {
         }));
 
         res.json({ items, total, page, pageSize, includeArchived });
-    } catch {
+    } catch (err) {
+        logApiEvent('error', 'Failed to load suggestions', getRequestLogContext(req), err);
         res.status(500).json({ error: 'Failed to load suggestions' });
     }
 });
@@ -594,7 +651,8 @@ app.patch('/video-api/suggestions/:id', requireTrustedOrigin, requireAdmin, asyn
             return res.status(404).json({ error: 'Suggestion not found' });
         }
         res.json({ success: true });
-    } catch {
+    } catch (err) {
+        logApiEvent('error', 'Failed to update suggestion', getRequestLogContext(req), err);
         res.status(500).json({ error: 'Failed to update suggestion' });
     }
 });
@@ -613,9 +671,24 @@ app.delete('/video-api/suggestions/:id', requireTrustedOrigin, requireAdmin, asy
             return res.status(404).json({ error: 'Suggestion not found' });
         }
         res.json({ success: true });
-    } catch {
+    } catch (err) {
+        logApiEvent('error', 'Failed to delete suggestion', getRequestLogContext(req), err);
         res.status(500).json({ error: 'Failed to delete suggestion' });
     }
+});
+
+app.use((err, req, res, next) => {
+    if (!req.path.startsWith('/video-api')) {
+        return next(err);
+    }
+
+    logApiEvent('error', 'Unhandled API error', getRequestLogContext(req), err);
+
+    if (res.headersSent) {
+        return next(err);
+    }
+
+    res.status(500).json({ error: 'Internal server error' });
 });
 
 async function startServer() {
